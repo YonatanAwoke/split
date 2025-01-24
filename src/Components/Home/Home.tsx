@@ -1,8 +1,42 @@
 import { useEffect, useState } from 'react';
 import { DollarSign, Menu, Split, Wallet, Wind, X } from 'lucide-react';
+import axios from 'axios';
 
 function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+
+  const [backendMessage, setBackendMessage] = useState('');
+
+  const [mapImageUrl, setMapImageUrl] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [suggestions, setSuggestions] = useState({ from: [], to: [] });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [selectedFrom, setSelectedFrom] = useState<{ text: string; longitude: number; latitude: number } | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [selectedTo, setSelectedTo] = useState<{ text: string; longitude: number; latitude: number } | null>(null);
+  
+  const accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+
+  useEffect(() => {
+    // Fetch data from the backend
+    axios.get('http://localhost:8000/api/test')
+      .then((response) => {
+        setBackendMessage(response.data.message);
+      })
+      .catch((error) => {
+        console.error('Error fetching data:', error);
+      });
+
+      const centerCoordinates = '38.7533,9.0351'; // lng,lat
+      const zoomLevel = 12.91; // Map zoom level
+      const mapStyle = 'streets-v12'; // Mapbox style
+      const imageSize = '1280x720'; // Image dimensions (width x height)
+  
+      const url = `https://api.mapbox.com/styles/v1/mapbox/${mapStyle}/static/${centerCoordinates},${zoomLevel},0/${imageSize}?access_token=${accessToken}`;
+      setMapImageUrl(url);
+  }, []);
 
   useEffect(() => {
     if (isMobileMenuOpen) {
@@ -17,17 +51,52 @@ function Home() {
     };
   }, [isMobileMenuOpen]);
 
+
+  const handleSearch = (query: string | number | boolean, type: string) => {
+    // Fetch suggestions from Mapbox Geocoding API
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+      query
+    )}.json?access_token=${accessToken}&autocomplete=true&limit=5`;
+    axios
+      .get(url)
+      .then((response) => {
+        setSuggestions((prev) => ({
+          ...prev,
+          [type]: response.data.features.map((feature: { place_name: unknown; center: unknown[]; }) => ({
+            text: feature.place_name,
+            longitude: feature.center[0],
+            latitude: feature.center[1],
+          })),
+        }));
+      })
+      .catch((error) => {
+        console.error('Error fetching location suggestions:', error);
+      });
+  };
+  
+
+  const handleSelect = (location: { text: string; longitude: number; latitude: number }, type: string) => {
+    if (type === 'from') {
+      setSelectedFrom(location);
+    } else if (type === 'to') {
+      setSelectedTo(location);
+    }
+    setSuggestions((prev) => ({ ...prev, [type]: [] })); // Clear suggestions
+  };
+
   return (
     <div className="min-h-screen bg-teal-900 relative">
       {/* Interactive Map Background */}
-      <div 
-        className="absolute inset-0 opacity-10 transition-opacity duration-500"
-        style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1569336415962-a4bd9f69cd83?ixlib=rb-1.2.1&auto=format&fit=crop&w=2000&q=80')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
-        }}
-      />
+      {mapImageUrl && (
+        <div
+          className="absolute inset-0 opacity-10 transition-opacity duration-500"
+          style={{
+            backgroundImage: `url(${mapImageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      )}
 
       {/* Mobile Menu Overlay */}
       <div className={`fixed inset-0 bg-black/80 z-20 transition-opacity duration-300 md:hidden ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
@@ -87,22 +156,73 @@ function Home() {
         <p className="text-gray-300 text-center max-w-2xl mx-auto mb-8 md:mb-12 text-sm md:text-base px-4">
             Split your taxi fare with travelers heading the same way. Affordable, comfortable, and secure rides—every time
         </p>
+        <p className="text-white text-center">{backendMessage}</p>
 
         {/* Search Inputs */}
         <div className="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-4 mb-8 md:mb-12 px-4">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="From"
+             className="w-full md:w-64 px-6 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
+            value={from}
+            onChange={(e) => {
+              const inputValue = e.target.value;
+              setFrom(inputValue);
+
+              // Clear suggestions if input is empty
+              if (inputValue.trim() === '') {
+                setSuggestions((prev) => ({ ...prev, from: [] }));
+              } else {
+                handleSearch(inputValue, 'from');
+              }
+            }}
+          />
+          {suggestions.from.length > 0 && (
+            <ul className="absolute bg-white w-full rounded shadow mt-1 max-h-40 overflow-y-auto z-10">
+              {suggestions.from.map((location: { text: string; longitude: number; latitude: number }, index) => (
+                <li
+                  key={index}
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => handleSelect(location, 'from')}
+                >
+                  {location.text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
           <div className="relative">
-            <input 
-              type="text" 
-              placeholder="From location"
+            <input
+              type="text"
+              placeholder="To"
               className="w-full md:w-64 px-6 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
+              value={to}
+              onChange={(e) => {
+                const inputValue = e.target.value;
+                setTo(inputValue);
+
+                // Clear suggestions if input is empty
+                if (inputValue.trim() === '') {
+                  setSuggestions((prev) => ({ ...prev, to: [] }));
+                } else {
+                  handleSearch(inputValue, 'to');
+                }
+              }}
             />
-          </div>
-          <div className="relative">
-            <input 
-              type="text" 
-              placeholder="To location"
-              className="w-full md:w-64 px-6 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
-            />
+            {suggestions.to.length > 0 && (
+              <ul className="absolute bg-white w-full rounded shadow mt-1 max-h-40 overflow-y-auto z-10">
+                {suggestions.to.map((location: { text: string; longitude: number; latitude: number }, index) => (
+                  <li
+                    key={index}
+                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => handleSelect(location, 'to')}
+                  >
+                    {location.text}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <button className="w-full md:w-auto px-8 py-3 bg-white text-teal-900 rounded-lg font-semibold hover:bg-white/90 transition-colors">
             Go
@@ -116,7 +236,7 @@ function Home() {
             <div className="flex justify-between items-start mb-4">
               <div>
                 <p className="text-sm text-gray-600">Total Money Saved</p>
-                <p className="text-2xl font-bold">$125,000+ </p>
+                <p className="text-2xl font-bold">125,000+ ETB </p>
               </div>
             </div>
             <div className="flex items-center text-sm text-gray-600">
