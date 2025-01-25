@@ -32,7 +32,7 @@ function Home() {
       const centerCoordinates = '38.7533,9.0351'; // lng,lat
       const zoomLevel = 12.91; // Map zoom level
       const mapStyle = 'streets-v12'; // Mapbox style
-      const imageSize = '1280x720'; // Image dimensions (width x height)
+      const imageSize = '1080x720'; // Image dimensions (width x height)
   
       const url = `https://api.mapbox.com/styles/v1/mapbox/${mapStyle}/static/${centerCoordinates},${zoomLevel},0/${imageSize}?access_token=${accessToken}`;
       setMapImageUrl(url);
@@ -53,16 +53,22 @@ function Home() {
 
 
   const handleSearch = (query: string | number | boolean, type: string) => {
-    // Fetch suggestions from Mapbox Geocoding API
+    // Define optional parameters
+    const proximity = '40.489673,9.145'; // Example: Longitude,Latitude for Ethiopia
+    const language = ['en', 'am']; // Change to 'am' for Amharic if needed
+    const country = 'ET'; // ISO 3166-1 alpha-2 code for Ethiopia
+  
+    // Construct the API URL with the additional parameters
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
       query
-    )}.json?access_token=${accessToken}&autocomplete=true&limit=5`;
+    )}.json?access_token=${accessToken}&autocomplete=true&limit=5&proximity=${proximity}&language=${language}&country=${country}`;
+  
     axios
       .get(url)
       .then((response) => {
         setSuggestions((prev) => ({
           ...prev,
-          [type]: response.data.features.map((feature: { place_name: unknown; center: unknown[]; }) => ({
+          [type]: response.data.features.map((feature: { place_name: string; center: number[] }) => ({
             text: feature.place_name,
             longitude: feature.center[0],
             latitude: feature.center[1],
@@ -74,14 +80,17 @@ function Home() {
       });
   };
   
+  
 
   const handleSelect = (location: { text: string; longitude: number; latitude: number }, type: string) => {
     if (type === 'from') {
       setSelectedFrom(location);
+      setFrom(location.text); 
     } else if (type === 'to') {
       setSelectedTo(location);
+      setTo(location.text); 
     }
-    setSuggestions((prev) => ({ ...prev, [type]: [] })); // Clear suggestions
+    setSuggestions((prev) => ({ ...prev, [type]: [] })); 
   };
 
   return (
@@ -161,23 +170,22 @@ function Home() {
         {/* Search Inputs */}
         <div className="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-4 mb-8 md:mb-12 px-4">
         <div className="relative">
-          <input
-            type="text"
-            placeholder="From"
-             className="w-full md:w-64 px-6 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
-            value={from}
-            onChange={(e) => {
-              const inputValue = e.target.value;
-              setFrom(inputValue);
+        <input
+          type="text"
+          placeholder="From"
+          className="w-full md:w-64 px-6 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
+          value={from}
+          onChange={(e) => {
+            const inputValue = e.target.value;
+            setFrom(inputValue);
 
-              // Clear suggestions if input is empty
-              if (inputValue.trim() === '') {
-                setSuggestions((prev) => ({ ...prev, from: [] }));
-              } else {
-                handleSearch(inputValue, 'from');
-              }
-            }}
-          />
+            if (inputValue.trim() === '') {
+              setSuggestions((prev) => ({ ...prev, from: [] }));
+            } else {
+              handleSearch(inputValue, 'from');
+            }
+          }}
+        />
           {suggestions.from.length > 0 && (
             <ul className="absolute bg-white w-full rounded shadow mt-1 max-h-40 overflow-y-auto z-10">
               {suggestions.from.map((location: { text: string; longitude: number; latitude: number }, index) => (
@@ -193,23 +201,22 @@ function Home() {
           )}
         </div>
           <div className="relative">
-            <input
-              type="text"
-              placeholder="To"
-              className="w-full md:w-64 px-6 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
-              value={to}
-              onChange={(e) => {
-                const inputValue = e.target.value;
-                setTo(inputValue);
+          <input
+            type="text"
+            placeholder="To"
+            className="w-full md:w-64 px-6 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
+            value={to}
+            onChange={(e) => {
+              const inputValue = e.target.value;
+              setTo(inputValue);
 
-                // Clear suggestions if input is empty
-                if (inputValue.trim() === '') {
-                  setSuggestions((prev) => ({ ...prev, to: [] }));
-                } else {
-                  handleSearch(inputValue, 'to');
-                }
-              }}
-            />
+              if (inputValue.trim() === '') {
+                setSuggestions((prev) => ({ ...prev, to: [] }));
+              } else {
+                handleSearch(inputValue, 'to');
+              }
+            }}
+          />
             {suggestions.to.length > 0 && (
               <ul className="absolute bg-white w-full rounded shadow mt-1 max-h-40 overflow-y-auto z-10">
                 {suggestions.to.map((location: { text: string; longitude: number; latitude: number }, index) => (
